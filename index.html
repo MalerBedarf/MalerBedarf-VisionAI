@@ -22,7 +22,7 @@
             min-height: 100vh;
             padding: 40px 20px;
         }
-        .container { max-width: 1600px; margin: 0 auto; position: relative; }
+        .container { max-width: 1600px; margin: 0 auto; }
         .header {
             text-align: center;
             padding: 80px 40px;
@@ -75,6 +75,7 @@
         #selectionBox { position: absolute; border: 4px dashed var(--accent); background: rgba(0,212,255,0.3); pointer-events: none; display: none; border-radius: 16px; }
         .loading { position: absolute; inset: 0; background: rgba(0,31,63,0.9); backdrop-filter: blur(20px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
         .spinner { width: 80px; height: 80px; border: 8px solid rgba(0,212,255,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .btn {
             padding: 20px 40px;
             border: none;
@@ -117,6 +118,7 @@
             max-width: 600px;
             border: 1px solid var(--border);
             box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+            position: relative;
         }
         .modal h3 { font-size: 32px; margin-bottom: 24px; text-align: center; }
         .modal p { font-size: 18px; line-height: 1.6; margin-bottom: 30px; text-align: center; opacity: 0.9; }
@@ -181,7 +183,6 @@
                     <h2>🚀 Ihr Ergebnis</h2>
                     <button class="btn secondary" id="downloadBtn" disabled>⬇️ Bild speichern</button>
                     <button class="btn primary" id="requestBtn" disabled>✉️ Beratung anfragen</button>
-                    <!-- Neuer USP-Button -->
                     <button class="btn primary" id="homeVisitBtn" style="background: linear-gradient(135deg, #ff6b6b, #ee5a24); margin-top:30px;">
                         🏡 Fachberater zu mir nach Hause bestellen
                     </button>
@@ -262,11 +263,15 @@
             loading: document.getElementById('loading')
         };
 
-        // Farbpalette (wie zuvor)
+        // Farbpalette
         ['#ffffff','#f5f1e8','#e8e8e8','#d4c4a8','#d6eef5','#c8e6c9','#c9a876','#7a7a7a','#003d5b','#00a8cc','#2d7a4a','#c85a54'].forEach(hex => {
             const swatch = document.createElement('div');
-            swatch.className = 'color-swatch';
             swatch.style.background = hex;
+            swatch.style.height = '100px';
+            swatch.style.borderRadius = '24px';
+            swatch.style.cursor = 'pointer';
+            swatch.style.transition = '0.4s';
+            swatch.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
             swatch.onclick = () => {
                 state.color = hex;
                 el.picker.value = hex;
@@ -283,14 +288,161 @@
 
         document.getElementById('homeVisitForm').onsubmit = e => {
             e.preventDefault();
-            alert('Vielen Dank! Ihr Fachberater-Terminwunsch wurde gesendet. Wir melden uns in Kürze bei Ihnen.');
+            alert('Vielen Dank! Ihre Anfrage für einen Fachberater vor Ort wurde gesendet. Wir melden uns bald bei Ihnen.');
             el.modal.classList.remove('active');
         };
 
-        // Der Rest des Scripts (Upload, Rechteck-Auswahl, applyKI, etc.) bleibt wie in der letzten Version
+        // Upload & Bild laden
+        el.upload.onclick = () => el.input.click();
+        el.input.onchange = e => e.target.files[0] && loadImage(e.target.files[0]);
 
-        // ... (kopiere den kompletten Script-Teil aus der vorherigen Antwort hier rein – Platzgründen gekürzt)
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    const max = 1200;
+                    const ratio = Math.min(max / img.width, max / img.height);
+                    const w = img.width * ratio;
+                    const h = img.height * ratio;
 
+                    el.wrapper.style.width = w + 'px';
+                    el.wrapper.style.height = h + 'px';
+
+                    el.original.width = w; el.original.height = h;
+                    el.original.getContext('2d').drawImage(img, 0, 0, w, h);
+
+                    el.modified.width = w; el.modified.height = h;
+
+                    state.img = el.original;
+                    state.mask = document.createElement('canvas');
+                    state.mask.width = w; state.mask.height = h;
+                    state.mask.getContext('2d').fillStyle = 'black';
+                    state.mask.getContext('2d').fillRect(0, 0, w, h);
+
+                    enableRectangleSelection();
+                    state.hasMask = false;
+                    el.download.disabled = el.request.disabled = true;
+                    el.modified.style.display = 'none';
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function enableRectangleSelection() {
+            el.wrapper.onmousedown = e => {
+                if (e.button !== 0) return;
+                const rect = el.wrapper.getBoundingClientRect();
+                state.startX = e.clientX - rect.left;
+                state.startY = e.clientY - rect.top;
+                state.selecting = true;
+                el.selectionBox.style.display = 'block';
+                el.selectionBox.style.left = state.startX + 'px';
+                el.selectionBox.style.top = state.startY + 'px';
+                el.selectionBox.style.width = '0';
+                el.selectionBox.style.height = '0';
+            };
+
+            el.wrapper.onmousemove = e => {
+                if (!state.selecting) return;
+                const rect = el.wrapper.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                const left = Math.min(state.startX, currentX);
+                const top = Math.min(state.startY, currentY);
+                const width = Math.abs(currentX - state.startX);
+                const height = Math.abs(currentY - state.startY);
+
+                el.selectionBox.style.left = left + 'px';
+                el.selectionBox.style.top = top + 'px';
+                el.selectionBox.style.width = width + 'px';
+                el.selectionBox.style.height = height + 'px';
+            };
+
+            document.onmouseup = () => {
+                if (state.selecting) {
+                    state.selecting = false;
+                    el.selectionBox.style.display = 'none';
+
+                    const box = el.selectionBox.getBoundingClientRect();
+                    const wrapperRect = el.wrapper.getBoundingClientRect();
+
+                    const scaleX = state.mask.width / wrapperRect.width;
+                    const scaleY = state.mask.height / wrapperRect.height;
+
+                    const x = (box.left - wrapperRect.left) * scaleX;
+                    const y = (box.top - wrapperRect.top) * scaleY;
+                    const w = box.width * scaleX;
+                    const h = box.height * scaleY;
+
+                    const ctx = state.mask.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(x, y, w, h);
+
+                    state.hasMask = true;
+                    applyKI();
+                }
+            };
+
+            el.reset.onclick = () => {
+                state.mask.getContext('2d').clearRect(0, 0, state.mask.width, state.mask.height);
+                state.mask.getContext('2d').fillStyle = 'black';
+                state.mask.getContext('2d').fillRect(0, 0, state.mask.width, state.mask.height);
+                state.hasMask = false;
+                el.modified.style.display = 'none';
+                el.download.disabled = el.request.disabled = true;
+            };
+        }
+
+        async function applyKI() {
+            if (!state.hasMask) return;
+            el.loading.style.display = 'flex';
+            try {
+                const res = await fetch(BACKEND_URL + '/api/recolor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        originalImage: state.img.toDataURL('image/jpeg', 0.9),
+                        maskImage: state.mask.toDataURL('image/png'),
+                        targetColor: state.color
+                    })
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const img = new Image();
+                img.onload = () => {
+                    el.modified.getContext('2d').drawImage(img, 0, 0);
+                    el.modified.style.display = 'block';
+                    el.download.disabled = false;
+                    el.request.disabled = false;
+                    el.loading.style.display = 'none';
+                };
+                img.src = data.imageDataURL;
+            } catch (err) {
+                el.loading.style.display = 'none';
+                alert('KI-Fehler: ' + err.message + '. Bitte später erneut versuchen.');
+            }
+        }
+
+        el.picker.oninput = e => { state.color = e.target.value; el.text.value = state.color; if (state.hasMask) applyKI(); };
+        el.text.onblur = () => {
+            let color = el.text.value.trim().toUpperCase();
+            if (!color.startsWith('#')) color = '#' + color;
+            if (/^#[0-9A-F]{6}$/.test(color)) {
+                state.color = color;
+                el.picker.value = color;
+                if (state.hasMask) applyKI();
+            }
+        };
+
+        el.download.onclick = () => {
+            const link = document.createElement('a');
+            link.href = el.modified.toDataURL();
+            link.download = 'malerbedarf-visionai-vorschau.png';
+            link.click();
+        };
     </script>
 </body>
 </html>
