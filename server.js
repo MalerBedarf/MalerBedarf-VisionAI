@@ -5,41 +5,30 @@ const cors = require('cors');
 
 const app = express();
 
-// Wichtige Middleware
-app.use(cors());                                      // Erlaubt Aufrufe von deiner WordPress-Seite
-app.use(express.json({ limit: '20mb' }));             // Große Base64-Bilder erlauben
-app.use(express.static(__dirname));                    // Serviert index.html, CSS, etc.
+app.use(cors());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.static(__dirname)); // Serviert index.html und andere Dateien
 
-// API-Key sicher aus Environment Variable holen
+// API-Key sicher aus Environment Variable
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
-    console.error('FEHLER: GEMINI_API_KEY ist nicht als Environment Variable gesetzt!');
+    console.error('FEHLER: GEMINI_API_KEY nicht als Environment Variable gesetzt!');
     process.exit(1);
 }
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// Aktuelles Top-Modell für Bild-Editing (Dezember 2025)
-const model = genAI.getGenerativeModel({ 
-    model: "gemini-3-pro-image-preview" 
-});
+// Aktuelles Modell für Image Editing (Dezember 2025)
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); // Stabil und verfügbar
 
-// API-Endpunkt für Recoloring
 app.post('/api/recolor', async (req, res) => {
     try {
         const { originalImage, maskImage, targetColor } = req.body;
 
-        if (!originalImage || !maskImage || !targetColor) {
-            return res.status(400).json({ error: 'Fehlende Daten: originalImage, maskImage oder targetColor' });
-        }
-
-        const prompt = `
-        Du bist ein professioneller Bildbearbeiter.
-        Aufgabe: Ändere AUSSCHLIESSLICH den weißen Bereich in der zweiten Maske (zweites Bild) des ersten Originalbildes in die Farbe ${targetColor}.
-        Behalte 100% aller Details, Texturen, Putzstruktur, Schatten, Reflexionen und Beleuchtung bei.
-        Das Ergebnis muss absolut photorealistisch und nahtlos wirken – als wäre das Foto original so aufgenommen worden.
-        Ändere nichts außerhalb der maskierten Fläche!
-        `;
+        const prompt = `Du bist ein professioneller Fotoretuscheur. 
+        Ändere NUR den weißen Bereich in der Maske (zweites Bild) des Originalfotos (erstes Bild) in die Farbe ${targetColor}.
+        Behalte absolut alle Details, Texturen, Putzstruktur, Schatten und Beleuchtung bei – photorealistisch und nahtlos.
+        Ändere nichts außerhalb der Maske!`;
 
         const result = await model.generateContent([
             prompt,
@@ -50,27 +39,22 @@ app.post('/api/recolor', async (req, res) => {
         const response = await result.response;
         const imagePart = response.candidates[0].content.parts[0].inlineData;
 
-        if (!imagePart) {
-            throw new Error('Kein Bild in der Antwort von Gemini');
-        }
+        if (!imagePart) throw new Error('Kein Bild generiert');
 
         const imageDataURL = `data:${imagePart.mimeType};base64,${imagePart.data}`;
-
         res.json({ imageDataURL });
     } catch (error) {
-        console.error('Gemini API Fehler:', error.message);
-        res.status(500).json({ error: 'KI-Verarbeitung fehlgeschlagen: ' + error.message });
+        console.error('Gemini Fehler:', error.message);
+        res.status(500).json({ error: 'KI-Fehler: ' + error.message });
     }
 });
 
-// Startseite: index.html anzeigen
+// Startseite
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Port von Render übernehmen (wichtig!)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server läuft auf Port ${PORT}`);
-    console.log(`Live unter: https://malerbedarf-visionai.onrender.com`);
 });
