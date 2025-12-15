@@ -92,7 +92,7 @@
         .primary:hover { transform: translateY(-10px); box-shadow: 0 20px 50px rgba(0,212,255,0.6); }
         .secondary { background: var(--glass); color: white; backdrop-filter: blur(10px); border: 1px solid var(--border); }
         .secondary:hover { background: rgba(255,255,255,0.3); }
-        /* Farbkarussell */
+        /* Farbkarussell mit 50 Farben – ohne HEX-Code */
         .color-carousel {
             position: relative;
             margin-top: 30px;
@@ -110,17 +110,17 @@
         .color-item {
             min-width: 200px;
             height: 260px;
-            border-radius: 24px;
+            border-radius: 32px;
             cursor: pointer;
-            transition: all 0.4s;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            transition: all 0.5s ease;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
-            padding: 24px;
-            color: white;
-            font-weight: 600;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+            padding: 30px;
+            font-size: 20px;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
             position: relative;
             overflow: hidden;
         }
@@ -128,12 +128,16 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(transparent 60%, rgba(0,0,0,0.7));
-            border-radius: 24px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%);
+            border-radius: 32px;
+        }
+        .color-item span {
+            position: relative;
+            z-index: 1;
         }
         .color-item:hover {
-            transform: translateY(-20px) scale(1.05);
-            box-shadow: 0 30px 60px rgba(0,212,255,0.4);
+            transform: translateY(-30px) scale(1.08);
+            box-shadow: 0 40px 80px rgba(0,212,255,0.5);
         }
         .carousel-btn {
             position: absolute;
@@ -145,29 +149,30 @@
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            font-size: 30px;
+            font-size: 32px;
             cursor: pointer;
             backdrop-filter: blur(10px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             z-index: 10;
+            transition: 0.3s;
         }
-        .carousel-btn:hover { background: rgba(255,255,255,0.3); }
+        .carousel-btn:hover { background: rgba(255,255,255,0.3); transform: translateY(-50%) scale(1.1); }
         #prevBtn { left: -30px; }
         #nextBtn { right: -30px; }
         .selected-preview {
             text-align: center;
-            margin-top: 40px;
+            margin-top: 50px;
         }
         #selectedSwatch {
-            width: 280px;
-            height: 280px;
-            border-radius: 32px;
+            width: 300px;
+            height: 300px;
+            border-radius: 40px;
             margin: 0 auto 30px;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.5);
-            transition: 0.4s;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+            transition: 0.6s;
         }
-        #selectedCode {
-            font-size: 28px;
+        #selectedName {
+            font-size: 32px;
             font-weight: bold;
         }
         .custom-color { display: flex; gap: 20px; margin-top: 30px; justify-content: center; }
@@ -245,10 +250,9 @@
                     <button class="btn secondary" id="resetSelection">↻ Zurücksetzen</button>
                 </div>
 
-                <!-- TOP TRENDFARBEN 2020-2026 + BELIEBTESTE SIKKENS 5051 -->
                 <div class="section">
-                    <h2>🎨 Trendfarben 2020-2026 & Sikkens 5051 Topseller</h2>
-                    <p style="margin-bottom: 30px; opacity: 0.9;">Die aktuellsten Trendfarben (warme Erdtöne, muddy greens, creamy neutrals) kombiniert mit den 25 beliebtesten Tönen aus der Sikkens 5051 Kollektion – alle Spektren abgedeckt!</p>
+                    <h2>🎨 Farbe wählen – 50 Top-Töne</h2>
+                    <p style="margin-bottom: 30px; opacity: 0.9;">Trendfarben 2020–2026 & beliebteste Sikkens 5051 Farben</p>
 
                     <div class="color-carousel">
                         <button class="carousel-btn" id="prevBtn">‹</button>
@@ -260,11 +264,11 @@
 
                     <div class="selected-preview">
                         <div id="selectedSwatch"></div>
-                        <p id="selectedCode">#00A8CC – Teal (Trend 2025)</p>
+                        <p id="selectedName">Creamy White (Trend 2026)</p>
                     </div>
 
                     <div class="custom-color">
-                        <input type="color" id="colorPicker" value="#00a8cc">
+                        <input type="color" id="colorPicker" value="#f8f4e8">
                         <input type="text" id="colorInput" placeholder="Oder eigenen HEX-Code eingeben">
                     </div>
                 </div>
@@ -333,7 +337,7 @@
     <script>
         const BACKEND_URL = 'https://malerbedarf-visionai.onrender.com';
 
-        const state = { img: null, mask: null, color: '#00a8cc', selecting: false, startX: 0, startY: 0, hasMask: false };
+        const state = { img: null, mask: null, color: '#f8f4e8', selecting: false, startX: 0, startY: 0, hasMask: false };
         const el = {
             upload: document.getElementById('uploadArea'),
             input: document.getElementById('imageInput'),
@@ -346,7 +350,7 @@
             prevBtn: document.getElementById('prevBtn'),
             nextBtn: document.getElementById('nextBtn'),
             selectedSwatch: document.getElementById('selectedSwatch'),
-            selectedCode: document.getElementById('selectedCode'),
+            selectedName: document.getElementById('selectedName'),
             picker: document.getElementById('colorPicker'),
             text: document.getElementById('colorInput'),
             download: document.getElementById('downloadBtn'),
@@ -357,12 +361,12 @@
             loading: document.getElementById('loading')
         };
 
-        // Top Trendfarben 2020-2026 + 25 beliebteste Sikkens 5051 Töne (alle Spektren abgedeckt)
-        const topColors = [
-            { name: "Creamy White (Trend 2026)", hex: "#f8f4e8" },
+        // 50 Top-Farben (Trend 2020-2026 + Sikkens 5051 Bestseller)
+        const colors = [
+            { name: "Creamy White", hex: "#f8f4e8" },
             { name: "Buttery Off-White", hex: "#f5f1e0" },
             { name: "Warm Cream", hex: "#f0e8d9" },
-            { name: "Universal Khaki (COTY 2026)", hex: "#b8a99a" },
+            { name: "Universal Khaki", hex: "#b8a99a" },
             { name: "Silhouette Brown", hex: "#5c4b3f" },
             { name: "Tobacco Brown", hex: "#8b6f47" },
             { name: "Warm Mahogany", hex: "#6b3e31" },
@@ -383,7 +387,32 @@
             { name: "Caramel Candy", hex: "#c9a876" },
             { name: "Dusty Rose", hex: "#c88a8a" },
             { name: "Anthrazit", hex: "#4a4a4a" },
-            { name: "Marine Navy", hex: "#003d5b" }
+            { name: "Marine Navy", hex: "#003d5b" },
+            { name: "True Joy", hex: "#f6d365" },
+            { name: "Sweet Embrace", hex: "#d9c2b5" },
+            { name: "Hellgrau Neutral", hex: "#e8e8e8" },
+            { name: "Sandbeige", hex: "#d4c4a8" },
+            { name: "Pastellblau", hex: "#d6eef5" },
+            { name: "Mintgrün", hex: "#c8e6c9" },
+            { name: "Sandton", hex: "#c9a876" },
+            { name: "Dunkelgrau", hex: "#7a7a7a" },
+            { name: "Tealblau", hex: "#00a8cc" },
+            { name: "Waldgrün", hex: "#2d7a4a" },
+            { name: "Terrakotta", hex: "#c85a54" },
+            { name: "Cremeweiß", hex: "#f0e8d9" },
+            { name: "Taupe", hex: "#b8a99a" },
+            { name: "Anthrazitgrau", hex: "#4a4a4a" },
+            { name: "Deep Ocean", hex: "#083b7b" },
+            { name: "Lavender Blue", hex: "#b3b3e0" },
+            { name: "Chili Oil", hex: "#c85a54" },
+            { name: "Magical Forest", hex: "#5d7b6e" },
+            { name: "Teaberry", hex: "#c88a8a" },
+            { name: "Amaranth", hex: "#a83e5c" },
+            { name: "Pale Banana", hex: "#f0e8c8" },
+            { name: "Orangeade", hex: "#f87c56" },
+            { name: "Primrose Pink", hex: "#f0d0d8" },
+            { name: "Cloud Dancer", hex: "#ffffff" },
+            { name: "Cosmic Light", hex: "#d6d0f0" }
         ];
 
         let currentStart = 0;
@@ -391,42 +420,42 @@
 
         function renderCarousel() {
             el.carouselTrack.innerHTML = '';
-            const end = Math.min(currentStart + itemsPerView, topColors.length);
+            const end = Math.min(currentStart + itemsPerView, colors.length);
 
             for (let i = currentStart; i < end; i++) {
-                const color = topColors[i];
+                const color = colors[i];
                 const item = document.createElement('div');
                 item.className = 'color-item';
                 item.style.background = color.hex;
-                item.innerHTML = `<div style="position:relative;z-index:1;">${color.name}<br><strong>${color.hex.toUpperCase()}</strong></div>`;
+                item.innerHTML = `<span>${color.name}</span>`;
                 item.onclick = () => {
                     state.color = color.hex;
                     el.picker.value = color.hex;
                     el.text.value = color.hex.toUpperCase();
                     el.selectedSwatch.style.background = color.hex;
-                    el.selectedCode.innerText = color.hex.toUpperCase() + ' – ' + color.name;
+                    el.selectedName.innerText = color.name;
                     if (state.hasMask) applyKI();
                 };
                 el.carouselTrack.appendChild(item);
             }
 
             el.prevBtn.disabled = currentStart === 0;
-            el.nextBtn.disabled = end >= topColors.length;
+            el.nextBtn.disabled = end >= colors.length;
         }
 
         el.prevBtn.onclick = () => {
-            currentStart = Math.max(0, currentStart - 1);
+            currentStart = Math.max(0, currentStart - itemsPerView);
             renderCarousel();
         };
 
         el.nextBtn.onclick = () => {
-            currentStart = Math.min(topColors.length - itemsPerView, currentStart + 1);
+            currentStart = Math.min(colors.length - itemsPerView, currentStart + itemsPerView);
             renderCarousel();
         };
 
         renderCarousel();
-        el.selectedSwatch.style.background = '#00a8cc';
-        el.selectedCode.innerText = '#00A8CC – Hidden Gem Teal (Trend 2026)';
+        el.selectedSwatch.style.background = '#f8f4e8';
+        el.selectedName.innerText = 'Creamy White';
 
         // Fachberater Modal
         el.homeVisitBtn.onclick = () => el.modal.classList.add('active');
