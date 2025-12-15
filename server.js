@@ -1,0 +1,42 @@
+const express = require('express');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const path = require('path');
+const app = express();
+
+app.use(express.json({ limit: '20mb' }));
+app.use(express.static(__dirname)); // Serviert index.html
+
+const GEMINI_API_KEY = 'DEIN_API_KEY_HIER_EINTRAGEN'; // Von https://ai.google.dev
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+
+app.post('/api/recolor', async (req, res) => {
+    try {
+        const { originalImage, maskImage, targetColor } = req.body;
+
+        const prompt = `Ändere ausschließlich den weißen Bereich in der zweiten Maske-Bild des ersten Originalbildes in die Farbe ${targetColor}. 
+        Behalte alle Texturen, Schatten, Beleuchtung und Details 100% realistisch bei – als wäre das Foto so aufgenommen worden. 
+        Ändere nichts außerhalb der Maske! Erstelle ein photorealistisches Ergebnis.`;
+
+        const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: originalImage.split(',')[1], mimeType: 'image/jpeg' } },
+            { inlineData: { data: maskImage.split(',')[1], mimeType: 'image/png' } }
+        ]);
+
+        const response = await result.response;
+        const imagePart = response.candidates[0].content.parts.find(p => p.inlineData);
+        if (!imagePart) throw new Error('Kein Bild generiert');
+
+        const imageDataURL = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+        res.json({ imageDataURL });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message || 'Gemini-Fehler' });
+    }
+});
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`));
