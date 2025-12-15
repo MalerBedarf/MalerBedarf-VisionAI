@@ -1,7 +1,7 @@
 {
   "name": "malerbedarf-visionai",
   "version": "1.0.0",
-  "description": "KI-Farbvorschau Tool für MalerBedarf Coburg – VisionAI",
+  "description": "MalerBedarf VisionAI – KI-Farbvorschau mit Fachberater-Service",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
