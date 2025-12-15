@@ -1,42 +1,276 @@
-const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const path = require('path');
-const app = express();
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalerBedarf VisionAI – KI-Farbvorschau</title>
+    <style>
+        :root {
+            --primary: #0a3d62;
+            --accent: #00d4ff;
+            --gradient: linear-gradient(135deg, #00d4ff, #0099cc);
+            --surface: #ffffff;
+            --radius: 24px;
+            --shadow: 0 8px 32px rgba(0,0,0,0.08);
+        }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #e0f2fe, #c0e4ff); margin:0; padding:20px; }
+        .container { max-width:1400px; margin:0 auto; }
+        .header { text-align:center; padding:40px 20px; background:var(--gradient); color:white; border-radius:var(--radius); margin-bottom:40px; }
+        .header h1 { font-size:42px; margin-bottom:12px; }
+        .badge { display:inline-flex; align-items:center; gap:10px; background:rgba(255,255,255,0.2); padding:10px 20px; border-radius:50px; font-weight:600; animation:pulse 4s infinite; }
+        @keyframes pulse { 0%,100%{box-shadow:0 0 20px rgba(0,212,255,0.3)} 50%{box-shadow:0 0 30px rgba(0,212,255,0.6)} }
+        .main { display:grid; grid-template-columns:1fr 1.8fr; gap:40px; }
+        @media(max-width:1024px){.main{grid-template-columns:1fr}}
+        .sidebar section { background:var(--surface); padding:28px; border-radius:16px; box-shadow:var(--shadow); margin-bottom:24px; }
+        .sidebar h2 { font-size:20px; color:var(--primary); margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+        .upload { border:3px dashed var(--accent); border-radius:16px; padding:48px; text-align:center; cursor:pointer; background:rgba(0,212,255,0.05); }
+        .upload:hover { background:rgba(0,212,255,0.15); }
+        .canvas-area { background:var(--surface); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); position:relative; cursor:crosshair; }
+        .wrapper { position:relative; display:block; margin:0 auto; background:#e0e0e0; }
+        #selectionBox { position:absolute; border:2px dashed var(--accent); background:rgba(0,212,255,0.1); pointer-events:none; display:none; }
+        .loading { position:absolute; inset:0; background:rgba(255,255,255,0.95); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:10; }
+        .spinner { width:60px; height:60px; border:5px solid rgba(0,212,255,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        button.btn { padding:16px 24px; border:none; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; width:100%; margin-top:12px; }
+        .primary { background:var(--gradient); color:white; }
+        .secondary { background:white; color:var(--primary); border:2px solid var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 MalerBedarf VisionAI</h1>
+            <p>Die intelligente KI-Farbvorschau für Ihr Zuhause – exklusiv von MalerBedarf Coburg</p>
+            <div class="badge">⚡ Powered by Google Gemini KI</div>
+        </div>
 
-app.use(express.json({ limit: '20mb' }));
-app.use(express.static(__dirname)); // Serviert index.html
+        <div class="main">
+            <div class="sidebar">
+                <section>
+                    <h2>📤 1. Foto hochladen</h2>
+                    <div class="upload" id="uploadArea">
+                        <span style="font-size:64px;">🏠</span><br>
+                        Ziehen Sie Ihr Foto hierher oder klicken Sie
+                        <input type="file" id="imageInput" accept="image/*" style="display:none;">
+                    </div>
+                </section>
 
-const GEMINI_API_KEY = 'AIzaSyADuJPX1YjtFAlqseIvrOFb0tkFjiJ753w'; // Von https://ai.google.dev
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-3-pro-image-preview" });
+                <section>
+                    <h2>🖼️ 2. Bereich auswählen</h2>
+                    <p>Klicken und ziehen Sie direkt auf dem Bild einen Rahmen um den zu färbenden Bereich (z. B. Fassade oder Wand).</p>
+                    <button class="btn secondary" id="resetSelection">↻ Auswahl zurücksetzen</button>
+                </section>
 
-app.post('/api/recolor', async (req, res) => {
-    try {
-        const { originalImage, maskImage, targetColor } = req.body;
+                <section>
+                    <h2>🎨 3. Farbe wählen</h2>
+                    <div id="colorPalette" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px;"></div>
+                    <div style="display:flex; gap:12px;">
+                        <input type="color" id="colorPicker" value="#00a8cc" style="width:80px; height:80px; border-radius:12px;">
+                        <input type="text" id="colorInput" placeholder="#00A8CC" style="flex:1; padding:12px; border-radius:12px; border:1px solid #ccc;">
+                    </div>
+                </section>
 
-        const prompt = `Ändere ausschließlich den weißen Bereich in der zweiten Maske-Bild des ersten Originalbildes in die Farbe ${targetColor}. 
-        Behalte alle Texturen, Schatten, Beleuchtung und Details 100% realistisch bei – als wäre das Foto so aufgenommen worden. 
-        Ändere nichts außerhalb der Maske! Erstelle ein photorealistisches Ergebnis.`;
+                <section>
+                    <h2>🚀 4. Ergebnis</h2>
+                    <button class="btn secondary" id="downloadBtn" disabled>⬇️ Bild speichern</button>
+                    <button class="btn primary" id="requestBtn" disabled>✉️ Kostenlose Beratung anfragen</button>
+                </section>
+            </div>
 
-        const result = await model.generateContent([
-            prompt,
-            { inlineData: { data: originalImage.split(',')[1], mimeType: 'image/jpeg' } },
-            { inlineData: { data: maskImage.split(',')[1], mimeType: 'image/png' } }
-        ]);
+            <div class="canvas-area">
+                <div class="loading" id="loading" style="display:none;">
+                    <div class="spinner"></div>
+                    <p>MalerBedarf VisionAI erstellt Ihre photorealistische Vorschau...</p>
+                </div>
+                <div id="canvasWrapper" class="wrapper">
+                    <canvas id="originalCanvas"></canvas>
+                    <div id="selectionBox"></div>
+                </div>
+                <canvas id="modifiedCanvas" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none;"></canvas>
+            </div>
+        </div>
+    </div>
 
-        const response = await result.response;
-        const imagePart = response.candidates[0].content.parts.find(p => p.inlineData);
-        if (!imagePart) throw new Error('Kein Bild generiert');
+    <script>
+        const BACKEND_URL = 'https://malerbedarf-visionai.onrender.com';
 
-        const imageDataURL = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-        res.json({ imageDataURL });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message || 'Gemini-Fehler' });
-    }
-});
+        const state = { img: null, mask: null, color: '#00a8cc', selecting: false, startX: 0, startY: 0, hasMask: false };
+        const el = {
+            upload: document.getElementById('uploadArea'),
+            input: document.getElementById('imageInput'),
+            wrapper: document.getElementById('canvasWrapper'),
+            original: document.getElementById('originalCanvas'),
+            modified: document.getElementById('modifiedCanvas'),
+            selectionBox: document.getElementById('selectionBox'),
+            reset: document.getElementById('resetSelection'),
+            palette: document.getElementById('colorPalette'),
+            picker: document.getElementById('colorPicker'),
+            text: document.getElementById('colorInput'),
+            download: document.getElementById('downloadBtn'),
+            request: document.getElementById('requestBtn'),
+            loading: document.getElementById('loading')
+        };
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+        // MalerBedarf-Farben
+        ['#ffffff','#f5f1e8','#e8e8e8','#d4c4a8','#d6eef5','#c8e6c9','#c9a876','#7a7a7a','#003d5b','#00a8cc','#2d7a4a','#c85a54'].forEach(hex => {
+            const div = document.createElement('div');
+            div.style.background = hex;
+            div.style.height = '60px';
+            div.style.borderRadius = '12px';
+            div.style.cursor = 'pointer';
+            div.style.border = hex === '#ffffff' ? '2px solid #ccc' : 'none';
+            div.onclick = () => { state.color = hex; el.picker.value = hex; el.text.value = hex; applyKI(); };
+            el.palette.appendChild(div);
+        });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`));
+        el.upload.onclick = () => el.input.click();
+        el.input.onchange = e => e.target.files[0] && loadImage(e.target.files[0]);
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    const max = 1200;
+                    const ratio = Math.min(max / img.width, max / img.height);
+                    const w = img.width * ratio;
+                    const h = img.height * ratio;
+
+                    el.wrapper.style.width = w + 'px';
+                    el.wrapper.style.height = h + 'px';
+
+                    el.original.width = w; el.original.height = h;
+                    el.original.getContext('2d').drawImage(img, 0, 0, w, h);
+
+                    el.modified.width = w; el.modified.height = h;
+
+                    state.img = el.original;
+                    state.mask = document.createElement('canvas');
+                    state.mask.width = w; state.mask.height = h;
+                    state.mask.getContext('2d').fillStyle = 'black';
+                    state.mask.getContext('2d').fillRect(0, 0, w, h);
+
+                    enableRectangleSelection();
+                    state.hasMask = false;
+                    el.download.disabled = el.request.disabled = true;
+                    el.modified.style.display = 'none';
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function enableRectangleSelection() {
+            el.wrapper.onmousedown = e => {
+                if (e.button !== 0) return;
+                const rect = el.wrapper.getBoundingClientRect();
+                state.startX = e.clientX - rect.left;
+                state.startY = e.clientY - rect.top;
+                state.selecting = true;
+                el.selectionBox.style.display = 'block';
+                el.selectionBox.style.left = state.startX + 'px';
+                el.selectionBox.style.top = state.startY + 'px';
+                el.selectionBox.style.width = '0px';
+                el.selectionBox.style.height = '0px';
+            };
+
+            el.wrapper.onmousemove = e => {
+                if (!state.selecting) return;
+                const rect = el.wrapper.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                const left = Math.min(state.startX, currentX);
+                const top = Math.min(state.startY, currentY);
+                const width = Math.abs(currentX - state.startX);
+                const height = Math.abs(currentY - state.startY);
+
+                el.selectionBox.style.left = left + 'px';
+                el.selectionBox.style.top = top + 'px';
+                el.selectionBox.style.width = width + 'px';
+                el.selectionBox.style.height = height + 'px';
+            };
+
+            document.onmouseup = () => {
+                if (state.selecting) {
+                    state.selecting = false;
+                    el.selectionBox.style.display = 'none';
+
+                    const boxRect = el.selectionBox.getBoundingClientRect();
+                    const wrapperRect = el.wrapper.getBoundingClientRect();
+
+                    const scaleX = state.mask.width / wrapperRect.width;
+                    const scaleY = state.mask.height / wrapperRect.height;
+
+                    const x = (boxRect.left - wrapperRect.left) * scaleX;
+                    const y = (boxRect.top - wrapperRect.top) * scaleY;
+                    const w = boxRect.width * scaleX;
+                    const h = boxRect.height * scaleY;
+
+                    const ctx = state.mask.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(x, y, w, h);
+
+                    state.hasMask = true;
+                    applyKI();
+                }
+            };
+
+            el.reset.onclick = () => {
+                state.mask.getContext('2d').clearRect(0, 0, state.mask.width, state.mask.height);
+                state.mask.getContext('2d').fillStyle = 'black';
+                state.mask.getContext('2d').fillRect(0, 0, state.mask.width, state.mask.height);
+                state.hasMask = false;
+                el.modified.style.display = 'none';
+                el.download.disabled = el.request.disabled = true;
+            };
+        }
+
+        async function applyKI() {
+            if (!state.hasMask) return;
+            el.loading.style.display = 'flex';
+            try {
+                const res = await fetch(BACKEND_URL + '/api/recolor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        originalImage: state.img.toDataURL('image/jpeg', 0.9),
+                        maskImage: state.mask.toDataURL('image/png'),
+                        targetColor: state.color
+                    })
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const img = new Image();
+                img.onload = () => {
+                    el.modified.getContext('2d').drawImage(img, 0, 0);
+                    el.modified.style.display = 'block';
+                    el.download.disabled = false;
+                    el.request.disabled = false;
+                    el.loading.style.display = 'none';
+                };
+                img.src = data.imageDataURL;
+            } catch (err) {
+                el.loading.style.display = 'none';
+                alert('KI-Fehler: ' + err.message + '\nPrüfe Render-Logs und API-Key.');
+            }
+        }
+
+        el.picker.oninput = e => { state.color = e.target.value; el.text.value = state.color; applyKI(); };
+        el.text.onblur = () => {
+            if (/^#[0-9A-F]{6}$/i.test(el.text.value)) {
+                state.color = el.text.value.toUpperCase();
+                el.picker.value = state.color;
+                applyKI();
+            }
+        };
+
+        el.download.onclick = () => {
+            const a = document.createElement('a');
+            a.href = el.modified.toDataURL();
+            a.download = 'malerbedarf-visionai-farbvorschau.png';
+            a.click();
+        };
+    </script>
+</body>
+</html>
