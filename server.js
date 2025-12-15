@@ -6,9 +6,9 @@ const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(__dirname)); // Serviert index.html
 
-const GEMINI_API_KEY = 'DEIN_API_KEY_HIER_EINTRAGEN'; // Von https://ai.google.dev
+const GEMINI_API_KEY = 'DAIzaSyADuJPX1YjtFAlqseIvrOFb0tkFjiJ753w'; // Von https://ai.google.dev
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+const model = genAI.getGenerativeModel({ model: "gemini-3-pro-image-preview" });
 
 app.post('/api/recolor', async (req, res) => {
     try {
@@ -39,4 +39,5 @@ app.post('/api/recolor', async (req, res) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`));
