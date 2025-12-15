@@ -1,14 +1,14 @@
 {
   "name": "malerbedarf-visionai",
   "version": "1.0.0",
-  "description": "MalerBedarf VisionAI – KI-Farbvorschau mit Fachberater-Service",
+  "description": "MalerBedarf VisionAI – jetzt mit Grok-2 Vision",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "@google/generative-ai": "^0.21.0",
+    "node-fetch": "^3.3.2",
     "cors": "^2.8.5"
   },
   "engines": {
