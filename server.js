@@ -1,73 +1,532 @@
-const express = require('express');
-const fetch = require('node-fetch'); // Neu: für Grok API
-const path = require('path');
-const cors = require('cors');
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalerBedarf VisionAI – KI-Farbvorschau & Fachberater</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #ca1f66;
+            --primary-dark: #a81a55;
+            --secondary: #222222;
+            --gradient: linear-gradient(135deg, #ca1f66, #e6458a);
+            --glass: rgba(34, 34, 34, 0.6);
+            --border: rgba(202, 31, 102, 0.3);
+            --shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            --text-light: #e0e0e0;
+            --bg-light: #333333;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #1a1a1a;
+            color: var(--text-light);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            padding: 80px 40px;
+            background: var(--gradient);
+            border-radius: 32px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            margin-bottom: 60px;
+        }
+        .header h1 { font-size: 56px; font-weight: 700; margin-bottom: 20px; color: white; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 16px;
+            background: rgba(255,255,255,0.1);
+            padding: 16px 32px; border-radius: 50px;
+            font-weight: 700; backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(202,31,102,0.3);
+            animation: glow 4s infinite alternate;
+        }
+        @keyframes glow { 0% { box-shadow: 0 10px 30px rgba(202,31,102,0.3); } 100% { box-shadow: 0 20px 60px rgba(202,31,102,0.6); } }
+        .main { display: grid; grid-template-columns: 1fr 2fr; gap: 60px; }
+        @media (max-width: 1100px) { .main { grid-template-columns: 1fr; } }
+        .sidebar { display: flex; flex-direction: column; gap: 40px; }
+        .section {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-radius: 32px;
+            padding: 40px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            transition: transform 0.5s;
+        }
+        .section:hover { transform: translateY(-20px); }
+        .section h2 { font-size: 28px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; color: white; }
+        .upload {
+            border: 4px dashed var(--primary);
+            border-radius: 32px;
+            padding: 80px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.4s;
+            background: rgba(202,31,102,0.1);
+        }
+        .upload:hover { background: rgba(202,31,102,0.2); transform: scale(1.05); }
+        .upload-hint {
+            margin-top: 30px;
+            font-size: 18px;
+            opacity: 0.9;
+            background: rgba(202,31,102,0.2);
+            padding: 20px;
+            border-radius: 16px;
+        }
+        .canvas-area {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            position: relative;
+            cursor: crosshair;
+        }
+        .wrapper { position: relative; background: #222222; border-radius: 32px; overflow: hidden; }
+        #selectionBox { position: absolute; border: 4px dashed var(--primary); background: rgba(202,31,102,0.3); pointer-events: none; display: none; border-radius: 16px; }
+        .loading { position: absolute; inset: 0; background: rgba(34,34,34,0.9); backdrop-filter: blur(20px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
+        .spinner { width: 80px; height: 80px; border: 8px solid rgba(202,31,102,0.3); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn {
+            padding: 20px 40px;
+            border: none;
+            border-radius: 20px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.4s;
+            width: 100%;
+            margin-top: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .primary { background: var(--gradient); color: white; }
+        .primary:hover { transform: translateY(-10px); box-shadow: 0 20px 50px rgba(202,31,102,0.6); }
+        .secondary { background: var(--glass); color: white; backdrop-filter: blur(10px); border: 1px solid var(--border); }
+        .secondary:hover { background: rgba(255,255,255,0.2); }
+        /* Sikkens 2026 Farbkarussell – exakt wie auf dem Foto */
+        .sikkens-2026 {
+            margin: 60px 0;
+            text-align: center;
+        }
+        .sikkens-title {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: white;
+        }
+        .sikkens-colors {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+        .sikkens-color {
+            width: 300px;
+            height: 400px;
+            border-radius: 40px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.5s ease;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .sikkens-color:hover {
+            transform: translateY(-30px) scale(1.05);
+            box-shadow: 0 40px 80px rgba(202,31,102,0.6);
+        }
+        .sikkens-color::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--color);
+            border-radius: 40px;
+            filter: url(#brush);
+        }
+        .sikkens-label {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            color: black;
+            padding: 20px 40px;
+            border-radius: 20px;
+            font-size: 24px;
+            font-weight: 700;
+            white-space: nowrap;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        .sikkens-label.tm {
+            font-size: 18px;
+            vertical-align: super;
+        }
+        .selected-preview {
+            text-align: center;
+            margin-top: 60px;
+        }
+        #selectedSwatch {
+            width: 350px;
+            height: 350px;
+            border-radius: 50px;
+            margin: 0 auto 30px;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+            transition: 0.6s;
+        }
+        #selectedName {
+            font-size: 36px;
+            font-weight: bold;
+        }
+        /* Pinselstrich-Effekt */
+        svg { position: absolute; width: 0; height: 0; }
+        /* Fachberater Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(20px);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--glass);
+            backdrop-filter: blur(30px);
+            border-radius: 32px;
+            padding: 50px;
+            width: 90%;
+            max-width: 600px;
+            border: 1px solid var(--border);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        .modal h3 { font-size: 32px; margin-bottom: 24px; text-align: center; }
+        .modal p { font-size: 18px; line-height: 1.6; margin-bottom: 30px; text-align: center; opacity: 0.9; }
+        .form-group { margin-bottom: 24px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 16px;
+        }
+        .form-group textarea { min-height: 120px; resize: vertical; }
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 36px;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+        .close-modal:hover { opacity: 1; }
+    </style>
+    <!-- Pinselstrich-Filter für authentischen Look -->
+    <svg>
+        <filter id="brush">
+            <feTurbulence type="fractalNoise" baseFrequency="0.000001" numOctaves="3" />
+            <feDisplacementMap in="SourceGraphic" scale="5" />
+        </filter>
+    </svg>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>MalerBedarf VisionAI</h1>
+            <p>KI-Farbvorschau + persönliche Beratung vor Ort</p>
+            <div class="badge">🏠 Fachberater kommt zu Ihnen nach Hause</div>
+        </div>
 
-const app = express();
+        <div class="main">
+            <div class="sidebar">
+                <div class="section">
+                    <h2>📤 Foto hochladen</h2>
+                    <div class="upload" id="uploadArea">
+                        <span style="font-size:100px;">🏠</span>
+                        <div style="font-size:20px; margin-top:24px;">Ziehen oder klicken</div>
+                        <input type="file" id="imageInput" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="upload-hint">
+                        <strong>Hinweis:</strong> Klicken und ziehen Sie nach dem Hochladen einen Rahmen um die gewünschte Fläche (z. B. Fassade oder Wand) – die KI färbt genau diesen Bereich!
+                    </div>
+                </div>
 
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
-app.use(express.static(__dirname));
+                <div class="section">
+                    <h2>🎨 Farbe wählen – Sikkens Farben des Jahres 2026</h2>
+                    <p style="margin-bottom: 40px; opacity: 0.9; text-align:center;">
+                        Die offiziellen Trendfarben 2026 von Sikkens – authentisch und inspirierend
+                    </p>
 
-// Dein Grok API-Key aus xAI Dashboard
-const GROK_API_KEY = process.env.GROK_API_KEY; // In Render als Environment Variable setzen!
+                    <div class="sikkens-2026">
+                        <div class="sikkens-title">SIKKENS FARBEN DES JAHRES 2026</div>
+                        <div class="sikkens-colors">
+                            <!-- Free Groove -->
+                            <div class="sikkens-color" style="--color:#001f5b;" onclick="selectSikkens('#001f5b', 'FREE GROOVE™')">
+                                <div class="sikkens-label">FREE<br>GROOVE<span class="tm">™</span></div>
+                            </div>
 
-if (!GROK_API_KEY) {
-    console.error('FEHLER: GROK_API_KEY nicht gesetzt!');
-    process.exit(1);
-}
+                            <!-- Mellow Flow -->
+                            <div class="sikkens-color" style="--color:#a3b5c6;" onclick="selectSikkens('#a3b5c6', 'MELLOW FLOW™')">
+                                <div class="sikkens-label">MELLOW<br>FLOW<span class="tm">™</span></div>
+                            </div>
 
-app.post('/api/recolor', async (req, res) => {
-    try {
-        const { originalImage, maskImage, targetColor } = req.body;
+                            <!-- Slow Swing -->
+                            <div class="sikkens-color" style="--color:#0a0f1a;" onclick="selectSikkens('#0a0f1a', 'SLOW SWING™')">
+                                <div class="sikkens-label">SLOW<br>SWING<span class="tm">™</span></div>
+                            </div>
+                        </div>
+                    </div>
 
-        const prompt = `Du bist ein Meister der Fassaden-Retusche. 
-Ändere exakt nur den weißen Bereich in der Maske (zweites Bild) des Originalfotos in die Farbe ${targetColor}.
-Behalte alle Texturen, Putz, Schatten und Licht perfekt bei – photorealistisch und nahtlos.
-Ändere nichts außerhalb der Maske!`;
+                    <div class="selected-preview">
+                        <div id="selectedSwatch"></div>
+                        <p id="selectedName">FREE GROOVE™</p>
+                    </div>
+                </div>
 
-        const response = await fetch('https://api.x.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${GROK_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: "grok-2-vision-1212", // Aktuelles Vision-Modell
-                messages: [
-                    {
-                        role: "user",
-                        content: [
-                            { type: "text", text: prompt },
-                            { type: "image_url", image_url: { url: originalImage } },
-                            { type: "image_url", image_url: { url: maskImage } }
-                        ]
-                    }
-                ],
-                max_tokens: 1000
-            })
-        });
+                <div class="section">
+                    <h2>🚀 Ihr Ergebnis</h2>
+                    <button class="btn secondary" id="downloadBtn" disabled>⬇️ Bild speichern</button>
+                    <button class="btn primary" id="requestBtn" disabled>✉️ Beratung anfragen</button>
+                    <button class="btn primary" id="homeVisitBtn" style="background: linear-gradient(135deg, #ff6b6b, #ee5a24); margin-top:30px;">
+                        🏡 Fachberater zu mir nach Hause bestellen
+                    </button>
+                </div>
+            </div>
 
-        const data = await response.json();
+            <div class="canvas-area">
+                <div class="loading" id="loading" style="display:none;">
+                    <div class="spinner"></div>
+                    <p style="font-size:24px; margin-top:40px;">VisionAI erstellt Ihre Vorschau...</p>
+                </div>
+                <div id="canvasWrapper" class="wrapper">
+                    <canvas id="originalCanvas"></canvas>
+                    <div id="selectionBox"></div>
+                </div>
+                <canvas id="modifiedCanvas" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none;"></canvas>
+            </div>
+        </div>
+    </div>
 
-        if (!response.ok) {
-            throw new Error(data.error?.message || 'Grok API Fehler');
+    <!-- Fachberater Modal -->
+    <div class="modal" id="homeVisitModal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeModal">&times;</span>
+            <h3>🏡 Fachberater vor Ort</h3>
+            <p>
+                Lassen Sie einen unserer Malermeister kostenlos & unverbindlich zu Ihnen nach Hause kommen.<br><br>
+                <strong>Wir messen Ihren bestehenden Farbton mit professionellem Spektrometer exakt aus</strong> –
+                damit wir ihn perfekt nachbilden oder Ihnen passende neue Töne vorschlagen können.<br><br>
+                Persönliche Beratung direkt an Ihrer Fassade oder Wand – der beste Weg zur perfekten Farbwahl!
+            </p>
+            <form id="homeVisitForm">
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" required>
+                </div>
+                <div class="form-group">
+                    <label>Adresse *</label>
+                    <input type="text" required>
+                </div>
+                <div class="form-group">
+                    <label>Telefon oder E-Mail *</label>
+                    <input type="text" required>
+                </div>
+                <div class="form-group">
+                    <label>Wunschtermin (optional)</label>
+                    <input type="text" placeholder="z. B. nächste Woche vormittags">
+                </div>
+                <div class="form-group">
+                    <label>Nachricht (optional)</label>
+                    <textarea placeholder="z. B. 'Ich möchte den aktuellen Fassadenfarbton ausmessen lassen'"></textarea>
+                </div>
+                <button type="submit" class="btn primary" style="margin-top:30px;">Anfrage absenden</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'https://malerbedarf-visionai.onrender.com';
+
+        const state = { img: null, mask: null, color: '#001f5b', selecting: false, startX: 0, startY: 0, hasMask: false };
+        const el = {
+            upload: document.getElementById('uploadArea'),
+            input: document.getElementById('imageInput'),
+            wrapper: document.getElementById('canvasWrapper'),
+            original: document.getElementById('originalCanvas'),
+            modified: document.getElementById('modifiedCanvas'),
+            selectionBox: document.getElementById('selectionBox'),
+            selectedSwatch: document.getElementById('selectedSwatch'),
+            selectedName: document.getElementById('selectedName'),
+            download: document.getElementById('downloadBtn'),
+            request: document.getElementById('requestBtn'),
+            homeVisitBtn: document.getElementById('homeVisitBtn'),
+            modal: document.getElementById('homeVisitModal'),
+            closeModal: document.getElementById('closeModal'),
+            loading: document.getElementById('loading')
+        };
+
+        function selectSikkens(hex, name) {
+            state.color = hex;
+            el.selectedSwatch.style.background = hex;
+            el.selectedName.innerText = name;
+            if (state.hasMask) applyKI();
         }
 
-        // Grok gibt Base64-Bild zurück
-        const imageBase64 = data.choices[0].message.content[0].image.base64;
-        const imageDataURL = `data:image/png;base64,${imageBase64}`;
+        // Standardauswahl
+        el.selectedSwatch.style.background = '#001f5b';
+        el.selectedName.innerText = 'FREE GROOVE™';
 
-        res.json({ imageDataURL });
-    } catch (error) {
-        console.error('Grok Fehler:', error.message);
-        res.status(500).json({ error: 'KI-Fehler: ' + error.message });
-    }
-});
+        // Fachberater Modal
+        el.homeVisitBtn.onclick = () => el.modal.classList.add('active');
+        el.closeModal.onclick = () => el.modal.classList.remove('active');
+        el.modal.onclick = e => e.target === el.modal && el.modal.classList.remove('active');
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+        document.getElementById('homeVisitForm').onsubmit = e => {
+            e.preventDefault();
+            alert('Vielen Dank! Ihre Anfrage für einen Fachberater vor Ort wurde gesendet. Wir melden uns bald bei Ihnen.');
+            el.modal.classList.remove('active');
+        };
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`MalerBedarf VisionAI mit Grok läuft auf Port ${PORT}`));
+        // Upload & Bild laden
+        el.upload.onclick = () => el.input.click();
+        el.input.onchange = e => e.target.files[0] && loadImage(e.target.files[0]);
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    const max = 1200;
+                    const ratio = Math.min(max / img.width, max / img.height);
+                    const w = img.width * ratio;
+                    const h = img.height * ratio;
+
+                    el.wrapper.style.width = w + 'px';
+                    el.wrapper.style.height = h + 'px';
+
+                    el.original.width = w; el.original.height = h;
+                    el.original.getContext('2d').drawImage(img, 0, 0, w, h);
+
+                    el.modified.width = w; el.modified.height = h;
+
+                    state.img = el.original;
+                    state.mask = document.createElement('canvas');
+                    state.mask.width = w; state.mask.height = h;
+                    state.mask.getContext('2d').fillStyle = 'black';
+                    state.mask.getContext('2d').fillRect(0, 0, w, h);
+
+                    enableRectangleSelection();
+                    state.hasMask = false;
+                    el.download.disabled = el.request.disabled = true;
+                    el.modified.style.display = 'none';
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function enableRectangleSelection() {
+            el.wrapper.onmousedown = e => {
+                if (e.button !== 0) return;
+                const rect = el.wrapper.getBoundingClientRect();
+                state.startX = e.clientX - rect.left;
+                state.startY = e.clientY - rect.top;
+                state.selecting = true;
+                el.selectionBox.style.display = 'block';
+                el.selectionBox.style.left = state.startX + 'px';
+                el.selectionBox.style.top = state.startY + 'px';
+                el.selectionBox.style.width = '0';
+                el.selectionBox.style.height = '0';
+            };
+
+            el.wrapper.onmousemove = e => {
+                if (!state.selecting) return;
+                const rect = el.wrapper.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                const left = Math.min(state.startX, currentX);
+                const top = Math.min(state.startY, currentY);
+                const width = Math.abs(currentX - state.startX);
+                const height = Math.abs(currentY - state.startY);
+
+                el.selectionBox.style.left = left + 'px';
+                el.selectionBox.style.top = top + 'px';
+                el.selectionBox.style.width = width + 'px';
+                el.selectionBox.style.height = height + 'px';
+            };
+
+            document.onmouseup = () => {
+                if (state.selecting) {
+                    state.selecting = false;
+                    el.selectionBox.style.display = 'none';
+
+                    const box = el.selectionBox.getBoundingClientRect();
+                    const wrapperRect = el.wrapper.getBoundingClientRect();
+
+                    const scaleX = state.mask.width / wrapperRect.width;
+                    const scaleY = state.mask.height / wrapperRect.height;
+
+                    const x = (box.left - wrapperRect.left) * scaleX;
+                    const y = (box.top - wrapperRect.top) * scaleY;
+                    const w = box.width * scaleX;
+                    const h = box.height * scaleY;
+
+                    const ctx = state.mask.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(x, y, w, h);
+
+                    state.hasMask = true;
+                    applyKI();
+                }
+            };
+        }
+
+        async function applyKI() {
+            if (!state.hasMask) return;
+            el.loading.style.display = 'flex';
+            try {
+                const res = await fetch(BACKEND_URL + '/api/recolor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        originalImage: state.img.toDataURL('image/jpeg', 0.9),
+                        maskImage: state.mask.toDataURL('image/png'),
+                        targetColor: state.color
+                    })
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const img = new Image();
+                img.onload = () => {
+                    el.modified.getContext('2d').drawImage(img, 0, 0);
+                    el.modified.style.display = 'block';
+                    el.download.disabled = false;
+                    el.request.disabled = false;
+                    el.loading.style.display = 'none';
+                };
+                img.src = data.imageDataURL;
+            } catch (err) {
+                el.loading.style.display = 'none';
+                alert('KI-Fehler: ' + err.message + '. Bitte später erneut versuchen.');
+            }
+        }
+
+        el.download.onclick = () => {
+            const link = document.createElement('a');
+            link.href = el.modified.toDataURL();
+            link.download = 'malerbedarf-visionai-vorschau.png';
+            link.click();
+        };
+    </script>
+</body>
+</html>
